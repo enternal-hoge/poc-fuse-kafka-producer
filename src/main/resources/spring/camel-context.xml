@@ -1,0 +1,43 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<beans xmlns="http://www.springframework.org/schema/beans" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="        http://www.springframework.org/schema/beans http://www.springframework.org/schema/beans/spring-beans.xsd        http://camel.apache.org/schema/spring       http://camel.apache.org/schema/spring/camel-spring.xsd">
+
+    <!-- 参考
+        https://github.com/lburgazzoli/apache-camel-spring-boot/blob/master/examples/camel-example-spring-boot-kafka-offsetrepository/src/main/resources/spring/camel-context.xml 
+    -->
+
+    <!--
+    <bean class="org.apache.camel.component.kafka.KafkaComponent">
+        <property name="brokers" value="${kafka.bootstrap.url}"/>
+    </bean>
+    -->
+
+    <bean id="fileProcessor" class="com.redhat.processor.FileProcessor"/>
+
+    <camelContext id="camel" xmlns="http://camel.apache.org/schema/spring">
+        <onException>
+            <exception>java.lang.Exception</exception>
+            <handled>
+                <constant>true</constant>
+            </handled>
+            <log loggingLevel="ERROR" message="${exception.message}" />
+            <setHeader headerName="Exchange.HTTP_RESPONSE_CODE">
+                <constant>500</constant>
+            </setHeader>
+            <setHeader headerName="Exchange.CONTENT_TYPE">
+                <constant>application/json</constant>
+            </setHeader>
+            <setBody>
+                <simple>{ "errorCode": "500", "errorMsg": "${exception.message}" }\n</simple>
+            </setBody>
+        </onException>
+
+        <route>
+            <from uri="file:data/input?noop=true&amp;delete=true&amp;filterFile=$simple{file:name} contains 'message'"/>
+            <process ref="fileProcessor"/>
+            <!-- kafka:test?brokers=localhost:9092 -->
+            <to uri="file:data/output"/>
+            <to uri="kafka:{{kafka.topic}}?brokers={{kafka.bootstrap.url}}"/>
+        </route>
+
+    </camelContext>
+</beans>
